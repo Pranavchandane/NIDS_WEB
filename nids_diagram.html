@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIDS — Module Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050c13;
+    --surface: #0a1520;
+    --card: #0d1e2e;
+    --border: #1a3a55;
+    --accent: #00d4ff;
+    --accent2: #00ff99;
+    --accent3: #ff6b35;
+    --accent4: #a855f7;
+    --text: #c8dde8;
+    --dim: #4a7a99;
+    --danger: #ff4444;
+    --warn: #ffaa00;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    padding: 6px 16px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+    animation: pulse 3s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0,212,255,0.3); }
+    50% { box-shadow: 0 0 20px rgba(0,212,255,0.6); }
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+    line-height: 1.1;
+  }
+
+  h1 span {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    margin-top: 14px;
+    color: var(--dim);
+    font-size: 14px;
+    letter-spacing: 1px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* Pipeline Section */
+  .section-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* Flow Pipeline */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 64px;
+  }
+
+  .pipe-node {
+    width: 100%;
+    max-width: 680px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pipe-node::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--node-color, var(--accent));
+    transition: width 0.25s;
+  }
+
+  .pipe-node:hover, .pipe-node.active {
+    border-color: var(--node-color, var(--accent));
+    box-shadow: 0 0 20px rgba(0,212,255,0.1), inset 0 0 30px rgba(0,212,255,0.02);
+    transform: translateX(4px);
+  }
+
+  .pipe-node:hover::before, .pipe-node.active::before {
+    width: 5px;
+    box-shadow: 0 0 12px var(--node-color, var(--accent));
+  }
+
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .node-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .node-meta {
+    flex: 1;
+  }
+
+  .node-file {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--node-color, var(--accent));
+    letter-spacing: 1px;
+  }
+
+  .node-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 2px;
+  }
+
+  .node-toggle {
+    font-size: 18px;
+    color: var(--dim);
+    transition: transform 0.25s;
+  }
+
+  .pipe-node.active .node-toggle {
+    transform: rotate(180deg);
+    color: var(--node-color, var(--accent));
+  }
+
+  .node-body {
+    display: none;
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pipe-node.active .node-body {
+    display: block;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .node-desc {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+
+  .node-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .node-details { grid-template-columns: 1fr; }
+  }
+
+  .detail-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+
+  .detail-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .detail-value {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .tag {
+    display: inline-block;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.2);
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin: 2px;
+  }
+
+  .tag.green { background: rgba(0,255,153,0.08); border-color: rgba(0,255,153,0.2); color: var(--accent2); }
+  .tag.orange { background: rgba(255,107,53,0.08); border-color: rgba(255,107,53,0.2); color: var(--accent3); }
+  .tag.purple { background: rgba(168,85,247,0.08); border-color: rgba(168,85,247,0.2); color: var(--accent4); }
+  .tag.red { background: rgba(255,68,68,0.08); border-color: rgba(255,68,68,0.2); color: var(--danger); }
+  .tag.warn { background: rgba(255,170,0,0.08); border-color: rgba(255,170,0,0.2); color: var(--warn); }
+
+  /* Arrow between nodes */
+  .pipe-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+    gap: 2px;
+  }
+
+  .pipe-arrow .line {
+    width: 2px;
+    height: 16px;
+    background: linear-gradient(180deg, var(--border), var(--accent));
+    opacity: 0.6;
+  }
+
+  .pipe-arrow .arrowhead {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--accent);
+    opacity: 0.7;
+  }
+
+  .pipe-arrow .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    margin-top: 2px;
+  }
+
+  /* Data Flow Diagram */
+  .dataflow {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    margin-bottom: 64px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    line-height: 2;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dataflow::before {
+    content: 'DATA FLOW';
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--border);
+  }
+
+  .df-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(26,58,85,0.4);
+  }
+
+  .df-row:last-child { border-bottom: none; }
+
+  .df-step {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .df-module {
+    color: var(--accent2);
+    min-width: 180px;
+  }
+
+  .df-arrow-inline {
+    color: var(--dim);
+  }
+
+  .df-data {
+    color: var(--warn);
+  }
+
+  /* Features table */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .features-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .feat-item {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .feat-item:hover {
+    color: var(--accent2);
+    border-color: rgba(0,255,153,0.3);
+  }
+
+  /* Detection split diagram */
+  .detection-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  @media (max-width: 580px) {
+    .detection-split { grid-template-columns: 1fr; }
+  }
+
+  .detect-box {
+    border-radius: 5px;
+    padding: 14px 16px;
+  }
+
+  .detect-box.rule {
+    background: rgba(255,107,53,0.06);
+    border: 1px solid rgba(255,107,53,0.25);
+  }
+
+  .detect-box.ml {
+    background: rgba(168,85,247,0.06);
+    border: 1px solid rgba(168,85,247,0.25);
+  }
+
+  .detect-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+  }
+
+  .detect-box.rule .detect-title { color: var(--accent3); }
+  .detect-box.ml .detect-title { color: var(--accent4); }
+
+  .detect-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .detect-bullet {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .rule .detect-bullet { background: var(--accent3); }
+  .ml .detect-bullet { background: var(--accent4); }
+
+  /* Alert format */
+  .code-block {
+    background: #010810;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+    color: #7fb3cc;
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+
+  .code-block .key { color: var(--accent); }
+  .code-block .val-str { color: var(--accent2); }
+  .code-block .val-num { color: var(--warn); }
+  .code-block .punct { color: var(--dim); }
+
+  /* Issues section */
+  .issues-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  @media (max-width: 600px) {
+    .issues-grid { grid-template-columns: 1fr; }
+  }
+
+  .issue-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 16px;
+  }
+
+  .issue-card.warn { border-left: 3px solid var(--warn); }
+  .issue-card.danger { border-left: 3px solid var(--danger); }
+
+  .issue-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .issue-card.warn .issue-title { color: var(--warn); }
+  .issue-card.danger .issue-title { color: var(--danger); }
+
+  .issue-desc {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--border);
+    letter-spacing: 2px;
+  }
+
+  /* Scanline animation */
+  @keyframes scanline {
+    0% { top: -10%; }
+    100% { top: 110%; }
+  }
+
+  .scanline {
+    position: fixed;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,0.06), transparent);
+    pointer-events: none;
+    z-index: 999;
+    animation: scanline 8s linear infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="scanline"></div>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="badge">▶ ARCHITECTURE OVERVIEW</div>
+    <h1>NIDS<span>_WEB</span></h1>
+    <p class="subtitle">Network Intrusion Detection System — Module Diagram</p>
+  </header>
+
+  <!-- Pipeline Section -->
+  <div class="section-title">Live Processing Pipeline</div>
+
+  <div class="pipeline">
+
+    <!-- run.py -->
+    <div class="pipe-node" style="--node-color:#00d4ff" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">🚀</div>
+        <div class="node-meta">
+          <div class="node-file">run.py</div>
+          <div class="node-name">Entry Point</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          The application's starting point. It instantiates the <strong>IntrusionDetectionSystem</strong>, loads the pre-trained Random Forest model from disk, and calls <code>ids.start()</code> to begin the monitoring loop. The network interface name is hardcoded here and must match your machine.
+        </p>
+        <div class="node-details">
+          <div class="detail-card">
+            <div class="detail-label">Responsibilities</div>
+            <div class="detail-value">Initialize system · Load ML model · Start monitoring loop</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Key Config</div>
+            <div class="detail-value">Interface name (hardcoded) · Model path: <span style="color:var(--warn)">models/rf_nids_model.pkl</span></div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Dependencies</div>
+            <div class="detail-value"><span class="tag">app.ids</span> <span class="tag">joblib</span></div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Known Issue</div>
+            <div class="detail-value" style="color:var(--warn)">⚠ Interface name hardcoded to one specific Wi-Fi card</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow">
+      <div class="line"></div>
+      <div class="arrowhead"></div>
+      <div class="label">instantiates</div>
+    </div>
+
+    <!-- ids.py -->
+    <div class="pipe-node" style="--node-color:#00ff99" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">🧠</div>
+        <div class="node-meta">
+          <div class="node-file">app/ids.py</div>
+          <div class="node-name">IDS Orchestrator</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          The central coordinator of the entire system. It wires together all 4 components and runs the main event loop. On each iteration it: pulls a packet from the queue → updates the flow → checks for expired flows → runs detection → fires alerts. Handles graceful <strong>SIGINT shutdown</strong> (Ctrl+C).
+        </p>
+        <div class="node-details">
+          <div class="detail-card">
+            <div class="detail-label">Main Loop Logic</div>
+            <div class="detail-value">
+              1. Get packet from queue (1s timeout)<br>
+              2. Update flow via FlowManager<br>
+              3. Check expired flows<br>
+              4. Detect threats per flow<br>
+              5. Log alerts if found
+            </div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Wires Together</div>
+            <div class="detail-value">
+              <span class="tag green">PacketCapture</span>
+              <span class="tag green">FlowManager</span>
+              <span class="tag green">DetectionEngine</span>
+              <span class="tag green">AlertSystem</span>
+            </div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Signal Handling</div>
+            <div class="detail-value">Catches SIGINT → stops sniffer thread → exits cleanly</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Error Handling</div>
+            <div class="detail-value">try/except wraps entire loop body; runtime errors are printed but don't crash the system</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow">
+      <div class="line"></div>
+      <div class="arrowhead"></div>
+      <div class="label">captures packets</div>
+    </div>
+
+    <!-- packet_capture.py -->
+    <div class="pipe-node" style="--node-color:#ff6b35" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">📡</div>
+        <div class="node-meta">
+          <div class="node-file">app/packet_capture.py</div>
+          <div class="node-name">Packet Sniffer</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Uses <strong>Scapy's sniff()</strong> to capture raw packets from the NIC in a <strong>background thread</strong>. Only TCP/IP packets are accepted. Each qualifying packet is pushed into a <code>queue.Queue</code>, decoupling capture from processing so no packets are dropped while detection is running.
+        </p>
+        <div class="node-details">
+          <div class="detail-card">
+            <div class="detail-label">Technology</div>
+            <div class="detail-value">Scapy sniff() · Python threading · queue.Queue</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Filter</div>
+            <div class="detail-value">Only passes packets containing <span class="tag orange">IP layer</span> <span class="tag orange">TCP layer</span></div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Threading Model</div>
+            <div class="detail-value">Capture runs in a daemon thread. Main thread consumes from queue with 1s timeout.</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Stop Mechanism</div>
+            <div class="detail-value">threading.Event signals Scapy's stop_filter to halt sniffing gracefully</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow">
+      <div class="line"></div>
+      <div class="arrowhead"></div>
+      <div class="label">raw packets → flows</div>
+    </div>
+
+    <!-- flow_manager.py -->
+    <div class="pipe-node" style="--node-color:#a855f7" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">🔀</div>
+        <div class="node-meta">
+          <div class="node-file">app/flow_manager.py</div>
+          <div class="node-name">Flow Manager</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Groups individual packets into <strong>bidirectional flows</strong> using a 5-tuple key. After <strong>2 seconds of inactivity</strong>, a flow expires and is finalized into a 17-feature statistical vector ready for detection.
+        </p>
+        <div class="node-details">
+          <div class="detail-card">
+            <div class="detail-label">Flow Key (5-tuple)</div>
+            <div class="detail-value">srcIP · dstIP · srcPort · dstPort · Protocol(TCP)</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Timeout</div>
+            <div class="detail-value">2 seconds of inactivity → flow finalized</div>
+          </div>
+        </div>
+        <div class="detail-label" style="margin-top:16px; margin-bottom:8px;">Extracted Features (17)</div>
+        <div class="features-grid">
+          <div class="feat-item">Destination Port</div>
+          <div class="feat-item">Flow Duration</div>
+          <div class="feat-item">Total Fwd Packets</div>
+          <div class="feat-item">Total Bwd Packets</div>
+          <div class="feat-item">Fwd Bytes</div>
+          <div class="feat-item">Bwd Bytes</div>
+          <div class="feat-item">Flow Bytes/s</div>
+          <div class="feat-item">Flow Packets/s</div>
+          <div class="feat-item">SYN Flag Count</div>
+          <div class="feat-item">ACK Flag Count</div>
+          <div class="feat-item">FIN Flag Count</div>
+          <div class="feat-item">Packet Length Mean</div>
+          <div class="feat-item">Packet Length Std</div>
+          <div class="feat-item">Idle Mean</div>
+          <div class="feat-item">Active Mean</div>
+          <div class="feat-item">Source IP</div>
+          <div class="feat-item">Destination IP</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow">
+      <div class="line"></div>
+      <div class="arrowhead"></div>
+      <div class="label">feature vector</div>
+    </div>
+
+    <!-- detection_engine.py -->
+    <div class="pipe-node" style="--node-color:#ffaa00" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">🔍</div>
+        <div class="node-meta">
+          <div class="node-file">app/detection_engine.py</div>
+          <div class="node-name">Detection Engine</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          The brain of the system. Runs <strong>two independent detection methods</strong> on every flow. Both can trigger simultaneously. Returns a list of threat objects, each with type, attack name, and confidence score.
+        </p>
+        <div class="detection-split">
+          <div class="detect-box rule">
+            <div class="detect-title">⚡ RULE-BASED</div>
+            <div class="detect-item"><div class="detect-bullet"></div><div><strong>Port Scan</strong> — ≥10 unique destination ports from same source within 5 seconds → confidence 0.95</div></div>
+            <div class="detect-item"><div class="detect-bullet"></div><div><strong>SYN Flood</strong> — SYN count &gt;20 AND ACK count = 0 → confidence 0.90</div></div>
+          </div>
+          <div class="detect-box ml">
+            <div class="detect-title">🤖 ML-BASED</div>
+            <div class="detect-item"><div class="detect-bullet"></div><div><strong>Random Forest</strong> trained on CICIDS2017 dataset (~2.8M samples)</div></div>
+            <div class="detect-item"><div class="detect-bullet"></div><div>15-feature vector → classifies as BENIGN, DoS, PortScan, Web Attack, or Infiltration</div></div>
+            <div class="detect-item"><div class="detect-bullet"></div><div>Non-BENIGN predictions added as threat with confidence 1.0</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow">
+      <div class="line"></div>
+      <div class="arrowhead"></div>
+      <div class="label">threat objects</div>
+    </div>
+
+    <!-- alert_system.py -->
+    <div class="pipe-node" style="--node-color:#ff4444" onclick="toggle(this)">
+      <div class="node-header">
+        <div class="node-icon">🚨</div>
+        <div class="node-meta">
+          <div class="node-file">app/alert_system.py</div>
+          <div class="node-name">Alert System</div>
+        </div>
+        <div class="node-toggle">▾</div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Receives threat objects and flow features, builds a structured alert record, stores it in memory, and <strong>persists the full alert list to JSON</strong> on every write. Also loads existing alerts on startup so history is preserved across runs.
+        </p>
+        <div class="detail-label" style="margin-bottom:8px;">Alert JSON Schema</div>
+        <div class="code-block">
+<span class="punct">{</span><br>
+&nbsp;&nbsp;<span class="key">"timestamp"</span><span class="punct">:</span> <span class="val-str">"2025-03-05 14:32:45"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"attack_type"</span><span class="punct">:</span> <span class="val-str">"PortScan"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"threat_category"</span><span class="punct">:</span> <span class="val-str">"rule_based"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"source_ip"</span><span class="punct">:</span> <span class="val-str">"192.168.1.100"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"destination_ip"</span><span class="punct">:</span> <span class="val-str">"172.16.0.1"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"destination_port"</span><span class="punct">:</span> <span class="val-num">22</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"confidence"</span><span class="punct">:</span> <span class="val-num">0.95</span><br>
+<span class="punct">}</span>
+        </div>
+        <div class="node-details" style="margin-top:12px;">
+          <div class="detail-card">
+            <div class="detail-label">Storage</div>
+            <div class="detail-value"><span class="tag red">logs/ids_alerts.json</span> — full rewrite on every alert</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Access Methods</div>
+            <div class="detail-value">get_recent_alerts(limit) · get_total_alerts()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Data Flow Diagram -->
+  <div class="section-title">Data Flow Summary</div>
+  <div class="dataflow">
+    <div class="df-row">
+      <div class="df-step">1</div>
+      <div class="df-module">packet_capture.py</div>
+      <div class="df-arrow-inline">→</div>
+      <div class="df-data">Raw TCP/IP Packet object (Scapy)</div>
+    </div>
+    <div class="df-row">
+      <div class="df-step">2</div>
+      <div class="df-module">flow_manager.py</div>
+      <div class="df-arrow-inline">→</div>
+      <div class="df-data">Accumulates into flow dict (in memory)</div>
+    </div>
+    <div class="df-row">
+      <div class="df-step">3</div>
+      <div class="df-module">flow_manager.py</div>
+      <div class="df-arrow-inline">→</div>
+      <div class="df-data">Expired flow → finalized 17-key feature dict</div>
+    </div>
+    <div class="df-row">
+      <div class="df-step">4</div>
+      <div class="df-module">detection_engine.py</div>
+      <div class="df-arrow-inline">→</div>
+      <div class="df-data">Rule check + ML predict → list of threat dicts</div>
+    </div>
+    <div class="df-row">
+      <div class="df-step">5</div>
+      <div class="df-module">alert_system.py</div>
+      <div class="df-arrow-inline">→</div>
+      <div class="df-data">Structured alert → logs/ids_alerts.json</div>
+    </div>
+  </div>
+
+  <!-- Inactive / Support Files -->
+  <div class="section-title">Support & Offline Files</div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:64px;">
+
+    <div class="pipe-node" style="--node-color:#4a7a99; cursor:default;">
+      <div class="node-header">
+        <div class="node-icon">💬</div>
+        <div class="node-meta">
+          <div class="node-file">app/traffic_analyzer.py</div>
+          <div class="node-name">Legacy Code</div>
+        </div>
+        <span class="tag warn">INACTIVE</span>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--dim); line-height:1.6;">
+        Entire file is commented out. This was the original flow tracking logic before <code>flow_manager.py</code> was written. Safe to delete.
+      </div>
+    </div>
+
+    <div class="pipe-node" style="--node-color:#4a7a99; cursor:default;">
+      <div class="node-header">
+        <div class="node-icon">🧪</div>
+        <div class="node-meta">
+          <div class="node-file">tests/test_ids.py</div>
+          <div class="node-name">Unit Tests</div>
+        </div>
+        <span class="tag red">BROKEN</span>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--dim); line-height:1.6;">
+        References <code>ids.traffic_analyzer</code> which no longer exists. Also missing the import statement. Needs to be rewritten against the current architecture.
+      </div>
+    </div>
+
+    <div class="pipe-node" style="--node-color:#4a7a99; cursor:default;">
+      <div class="node-header">
+        <div class="node-icon">🏋️</div>
+        <div class="node-meta">
+          <div class="node-file">models/train_supervised_model.py</div>
+          <div class="node-name">Model Trainer</div>
+        </div>
+        <span class="tag">OFFLINE</span>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--dim); line-height:1.6;">
+        Run separately to train the Random Forest on <code>dataset/Week_filtered.csv</code> (CICIDS2017). Saves model to <code>models/rf_nids_model.pkl</code>. Not part of live pipeline — run once before starting the IDS.
+      </div>
+    </div>
+
+    <div class="pipe-node" style="--node-color:#4a7a99; cursor:default;">
+      <div class="node-header">
+        <div class="node-icon">📦</div>
+        <div class="node-meta">
+          <div class="node-file">requirements.txt</div>
+          <div class="node-name">Dependencies</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <span class="tag">scapy</span>
+        <span class="tag">numpy</span>
+        <span class="tag">scikit-learn</span>
+        <span class="tag">python-nmap</span>
+        <span class="tag warn">joblib*</span>
+        <div style="margin-top:8px; font-size:11px; color:var(--dim);">* joblib is used in run.py but missing from requirements.txt</div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>NIDS_WEB — MODULE ARCHITECTURE DIAGRAM · EDUCATIONAL USE</footer>
+
+</div>
+
+<script>
+  function toggle(el) {
+    const wasActive = el.classList.contains('active');
+    document.querySelectorAll('.pipe-node').forEach(n => n.classList.remove('active'));
+    if (!wasActive) el.classList.add('active');
+  }
+</script>
+</body>
+</html>
